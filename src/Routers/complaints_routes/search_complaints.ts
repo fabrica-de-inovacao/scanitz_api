@@ -39,7 +39,92 @@ router.get("/", async (req, res) => {
   }
 });
 
-//buscar todas as denuncias de um usuario pelo o uid
+//listar todas as posições das denuncias
+router.get("/positions", async (req, res) => {
+  try {
+    const complaintsPositionsSnapshot = await firestore.getDocs(
+      firestore.collection(db, "complaints")
+    );
+
+    //verifica se a lista esta vazia
+    if (complaintsPositionsSnapshot.empty) {
+      res.status(404).json({
+        success: false,
+        statuscode: 404,
+        message: "Ops... 😿",
+      });
+    } else {
+      const listComplaintsPositions = complaintsPositionsSnapshot.docs.map(
+        (doc) => ({
+          id: doc.id,
+          latitude: doc.data().address.latitude,
+          longitude: doc.data().address.longitude,
+        })
+      );
+      res.status(200).json({
+        success: true,
+        statuscode: 200,
+        data: listComplaintsPositions,
+      });
+    }
+  } catch (error) {
+    // Em caso de erro no servidor
+    res.status(500).json({
+      success: false,
+      statuscode: 500,
+      message: "Ops...😿",
+    });
+  }
+});
+
+//buscar denuncia pelo id
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const complaintIdSnapshot = await firestore.getDocs(
+      firestore.collection(db, "complaints")
+    );
+    if (!complaintIdSnapshot) {
+      res.status(400).json({
+        success: false,
+        statuscode: 400,
+        message: "Ops... 😿",
+      });
+    } else {
+      let complaint;
+      complaintIdSnapshot.docs.map((doc) =>
+        doc.id.match(id)
+          ? doc.exists
+            ? (complaint = { id: doc.id, ...doc.data() })
+            : null
+          : null
+      );
+
+      if (!complaint) {
+        res.status(201).json({
+          success: false,
+          statuscode: 400,
+          message: "Ops... ID inválido ou não encontrado 😿",
+        });
+      } else {
+        res.status(200).json({
+          success: true,
+          statuscode: 200,
+          data: complaint,
+        });
+      }
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      statuscode: 500,
+      message: "Ops...erro interno no servidor 😿",
+    });
+  }
+});
+
+//buscar todas as denuncias de um bairro
 router.get("/:district", async (req, res) => {
   const { district } = req.params;
 

@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { setupSwagger } from "./documentation/swagger";
 import RouterUsers from "./Routers/users_routes/users_routes";
 import RouterComplaints from "./Routers/complaints_routes/complaints_routes";
+import RouterAuth from "./Routers/auth/auth_routes";
 
 const app = express();
 app.use(express.json());
@@ -26,6 +27,7 @@ setupSwagger(app);
 
 app.use("/users", RouterUsers);
 app.use("/complaints", RouterComplaints);
+app.use("/auth", RouterAuth);
 
 dotenv.config();
 

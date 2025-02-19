@@ -59,7 +59,7 @@ router.get("/:uid", async (req, res) => {
       );
 
       if (!usuario) {
-        res.status(201).json({
+        res.status(400).json({
           success: false,
           statuscode: 400,
           message: "Ops... UID inválido ou não encontrado 😿",

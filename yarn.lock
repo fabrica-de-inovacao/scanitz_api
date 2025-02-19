@@ -1042,6 +1042,11 @@ cors@^2.8.5:
     object-assign "^4"
     vary "^1"
 
+cpf-check@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/cpf-check/-/cpf-check-3.0.0.tgz#7279a1f6998a9385da1386bbe427fbf78144b9ec"
+  integrity sha512-IwUJdDJ57kheRXiO7govTBOcKsLK/AdDrVKfk6rYCCNDcOBUiY9zmUY0fWI4/S/oIpbhHWMcOD0O2DLawuwiBw==
+
 debug@2.6.9:
   version "2.6.9"
   resolved "https://registry.yarnpkg.com/debug/-/debug-2.6.9.tgz#5d128515df134ff327e90a4c93f4e077a536341f"

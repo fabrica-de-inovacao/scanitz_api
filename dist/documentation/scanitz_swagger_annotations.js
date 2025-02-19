@@ -4,7 +4,6 @@
  *   name: Auth
  *   description: Endpoints de autenticação
  */
-
 /**
  * @swagger
  * /auth/login:
@@ -46,7 +45,6 @@
  *       500:
  *         description: Erro interno no servidor
  */
-
 /**
  * @swagger
  * /auth/register:
@@ -100,7 +98,6 @@
  *       500:
  *         description: Erro interno no servidor
  */
-
 /**
  * @swagger
  * components:
