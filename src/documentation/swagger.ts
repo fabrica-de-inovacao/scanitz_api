@@ -3,15 +3,22 @@ import swaggerJsdoc from "swagger-jsdoc";
 import { Express } from "express";
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 
-const scanitzSwaggerAnnotationsPath = path.join(
+let scanitzSwaggerAnnotationsPath = path.join(
   __dirname,
-  "scanitz_swagger_annotations.ts"
+  "scanitz_swagger_annotations.js"
 );
+if (!fs.existsSync(scanitzSwaggerAnnotationsPath)) {
+  scanitzSwaggerAnnotationsPath = path.join(
+    __dirname,
+    "scanitz_swagger_annotations.ts"
+  );
+}
 
 const scanitzSwaggerDefinition = {
   swaggerDefinition: {
@@ -35,7 +42,7 @@ const scanitzSwaggerDefinition = {
         description: "Servidor local",
       },
       {
-        url: "hhttps://scanitzapi-production.up.railway.app/",
+        url: "https://scanitzapi-production.up.railway.app/",
         description: "Servidor de Homologação",
       },
     ],
