@@ -8,33 +8,37 @@ const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const swagger_jsdoc_1 = __importDefault(require("swagger-jsdoc"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 dotenv_1.default.config();
 const PORT = process.env.PORT || 3000;
-const scanitzSwaggerAnnotationsPath = path_1.default.join(__dirname, "scanitz_swagger_annotations.ts");
+let scanitzSwaggerAnnotationsPath = path_1.default.join(__dirname, "scanitz_swagger_annotations.js");
+if (!fs_1.default.existsSync(scanitzSwaggerAnnotationsPath)) {
+    scanitzSwaggerAnnotationsPath = path_1.default.join(__dirname, "scanitz_swagger_annotations.ts");
+}
 const scanitzSwaggerDefinition = {
     swaggerDefinition: {
-        openapi: '3.0.0',
+        openapi: "3.0.0",
         info: {
-            title: 'Scanitz API',
-            version: '1.0.0',
-            description: 'API para gerenciamento e monitoramento de dispositivos.',
+            title: "Scanitz API",
+            version: "1.0.0",
+            description: "API para gerenciamento e monitoramento de dispositivos.",
             author: {
                 name: "Mareanx",
-                email: "fabricadeinovacaoitz@gmail.com"
+                email: "fabricadeinovacaoitz@gmail.com",
             },
             contact: {
                 name: "Mareanx",
-                email: "fabricadeinovacaoitz@gmail.com"
-            }
+                email: "fabricadeinovacaoitz@gmail.com",
+            },
         },
         servers: [
             {
-                url: 'http://localhost:' + PORT,
-                description: 'Servidor local',
+                url: "http://localhost:" + PORT,
+                description: "Servidor local",
             },
             {
-                url: 'https://staging.api.scanitz.com/v1',
-                description: 'Servidor de Homologação',
+                url: "https://scanitzapi-production.up.railway.app/",
+                description: "Servidor de Homologação",
             },
         ],
     },
@@ -42,6 +46,5 @@ const scanitzSwaggerDefinition = {
 };
 const scanitzSwaggerDocs = (0, swagger_jsdoc_1.default)(scanitzSwaggerDefinition);
 function setupSwagger(app) {
-    app.use('/api-docs', swagger_ui_express_1.default.serve, (...args) => swagger_ui_express_1.default.setup(scanitzSwaggerDocs)(...args));
+    app.use("/api-docs", swagger_ui_express_1.default.serve, (...args) => swagger_ui_express_1.default.setup(scanitzSwaggerDocs)(...args));
 }
-;
