@@ -156,8 +156,14 @@ export function setupSwagger(app: Express) {
     swaggerUi.setup(scanitzSwaggerDocs, swaggerOptions)(...args)
   );
 
-  // Endpoint para obter a especificação JSON
+  // Endpoints para obter a especificação JSON
   app.get("/api/v1/swagger.json", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.send(scanitzSwaggerDocs);
+  });
+
+  // Endpoint alternativo com formato padrão do Swagger UI
+  app.get("/api/v1/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(scanitzSwaggerDocs);
   });
