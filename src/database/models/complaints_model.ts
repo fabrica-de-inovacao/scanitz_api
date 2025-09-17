@@ -1,24 +1,42 @@
-export interface ComplaintsModel{
-   id:String;  //id da denuncia
-   description:String;
-   created_at: Date;  //data de criação da denuncia
-   updated_at: Date;  //data da ultima atualização
-   address: Array<{
-    city: String;
-    district: String;
-    fallback_name: String;
-    latitude: Number; 
-    longitude: Number;
-    postal_code: String;
-    state: String;
-    street: String;
-   }>;
-   situation:Array<{     
-   status: Number;
-   }>;         // conjunto de informações sobre o status da denuncia
-  image_url:String;  //imagem(s) da denuncia 
-  thumbnail_url: String;  //imagem reduzida 
-  similar_count:Number;  //numero de denuncias parecidas (mesmo endereço ou endereço próximo)
-  user_id:String;    //id do usuário que criou a denuncia 
-  user_name:String;  // nome do usuario que criou a denuncia 
+/**
+ * Interface baseada na estrutura REAL do Firestore Collection "complaints"
+ * Localização: nam5 (North America 5)
+ */
+export interface ComplaintsModel {
+  // ID do documento (gerado pelo Firestore)
+  id?: string;
+
+  // Conteúdo da denúncia
+  description: string; // Texto da denúncia
+
+  // Localização (objeto, não array)
+  address: {
+    city: string; // "Imperatriz"
+    district: string; // "Parque Sanharol"
+    fallbackName: string; // Nome alternativo do local
+    latitude: number; // Coordenada GPS
+    longitude: number; // Coordenada GPS
+    postalCode: string; // CEP formato "65914-408"
+    state: string; // "Maranhão"
+  };
+
+  // Status (objeto, não array)
+  situation: {
+    status: number; // 0=pendente, 1=progresso, 2=resolvido
+  };
+
+  // Mídia
+  imageUrl: string; // URL da imagem original
+  thumbnailUrl: string; // URL da thumbnail otimizada
+
+  // Métricas
+  similarCount: number; // Quantidade de denúncias similares
+
+  // Dados do usuário
+  userId: string; // Firebase Auth UID do criador
+  userName: string; // Nome do usuário (desnormalizado)
+
+  // Timestamps (Firebase Timestamp)
+  createdAt: any; // Timestamp de criação
+  updatedAt: any; // Timestamp da última atualização
 }

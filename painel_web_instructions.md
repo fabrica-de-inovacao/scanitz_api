@@ -107,7 +107,7 @@ src/
 // Seguir padrão shadcn/ui
 - Button (variants: primary, secondary, ghost, outline)
 - Card (com header, content, footer)
-- Badge (status indicators)
+- Badge (status indicators)Te
 - Input (com validation states)
 - Select (com search)
 - Modal/Dialog

@@ -24,23 +24,27 @@
  *       properties:
  *         id:
  *           type: string
- *           description: ID único do usuário
- *         name:
+ *           description: ID único do usuário (document ID)
+ *         documentNumber:
  *           type: string
- *           description: Nome completo do usuário
+ *           description: CPF no formato "012.928.133-69"
+ *           example: "012.928.133-69"
  *         email:
  *           type: string
  *           format: email
  *           description: Email do usuário
- *         phone:
+ *           example: "rubenvalmat@gmail.com"
+ *         fullName:
  *           type: string
- *           description: Telefone do usuário
- *         city:
+ *           description: Nome completo do usuário
+ *           example: "Rubenval Mesquita"
+ *         phoneNumber:
  *           type: string
- *           description: Cidade do usuário
- *         district:
+ *           description: Telefone no formato "99 99140-9572"
+ *           example: "99 99140-9572"
+ *         photoURL:
  *           type: string
- *           description: Bairro do usuário
+ *           description: URL da foto de perfil
  *         verified:
  *           type: boolean
  *           description: Status de verificação do usuário
@@ -55,44 +59,79 @@
  *         id:
  *           type: string
  *           description: ID único da denúncia
- *         title:
- *           type: string
- *           description: Título da denúncia
  *         description:
  *           type: string
- *           description: Descrição detalhada
- *         user_id:
- *           type: string
- *           description: ID do usuário que criou a denúncia
+ *           description: Descrição da denúncia
+ *           example: "Poça próximo ao meio fio"
  *         address:
- *           type: string
- *           description: Endereço da ocorrência
- *         city:
- *           type: string
- *           description: Cidade da ocorrência
- *         district:
- *           type: string
- *           description: Bairro da ocorrência
- *         location:
  *           type: object
+ *           description: Localização completa da denúncia
  *           properties:
+ *             city:
+ *               type: string
+ *               description: Cidade da ocorrência
+ *               example: "Imperatriz"
+ *             district:
+ *               type: string
+ *               description: Bairro da ocorrência
+ *               example: "Parque Sanharol"
+ *             fallbackName:
+ *               type: string
+ *               description: Nome alternativo do local
+ *               example: "Parque Sanharol"
  *             latitude:
  *               type: number
  *               format: double
+ *               description: Coordenada GPS latitude
+ *               example: -5.5110338
  *             longitude:
  *               type: number
  *               format: double
- *         status:
- *           type: integer
- *           enum: [0, 1, 2]
- *           description: Status da denúncia (0=Pendente, 1=Em Andamento, 2=Resolvida)
- *         image_url:
+ *               description: Coordenada GPS longitude
+ *               example: -47.4512995
+ *             postalCode:
+ *               type: string
+ *               description: CEP da localização
+ *               example: "65914-408"
+ *             state:
+ *               type: string
+ *               description: Estado
+ *               example: "Maranhão"
+ *         situation:
+ *           type: object
+ *           description: Status atual da denúncia
+ *           properties:
+ *             status:
+ *               type: integer
+ *               enum: [0, 1, 2]
+ *               description: Status da denúncia (0=Pendente, 1=Em Progresso, 2=Resolvida)
+ *               example: 1
+ *         imageUrl:
  *           type: string
- *           description: URL da imagem da denúncia
- *         created_at:
+ *           description: URL da imagem original
+ *         thumbnailUrl:
+ *           type: string
+ *           description: URL da thumbnail otimizada
+ *         userId:
+ *           type: string
+ *           description: Firebase UID do usuário que criou
+ *           example: "LaycJMtTUsUFhJvtDBbV00NYWbM2"
+ *         userName:
+ *           type: string
+ *           description: Nome do usuário que criou
+ *           example: "Jaires Almeida De Araújo"
+ *         similarCount:
+ *           type: integer
+ *           description: Quantidade de denúncias similares
+ *           example: 1
+ *         createdAt:
  *           type: string
  *           format: date-time
  *           description: Data de criação
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *           description: Data da última atualização
  *
  *     SearchResult:
  *       type: object

@@ -5,9 +5,7 @@ import * as firestore from "firebase/firestore";
 
 const RouterComplaints = Router();
 
-RouterComplaints.use("/", searchComplaints);
-
-//endpoint específico para dados de mapa de calor otimizado
+//endpoint específico para dados de mapa de calor otimizado (DEVE vir ANTES das rotas com parâmetros)
 RouterComplaints.get("/heatmap", async (req, res) => {
   try {
     const {
@@ -34,17 +32,31 @@ RouterComplaints.get("/heatmap", async (req, res) => {
     }
 
     let complaints = complaintsSnapshot.docs
-      .map((doc) => ({
-        id: doc.id,
-        latitude: doc.data().address?.latitude,
-        longitude: doc.data().address?.longitude,
-        status: doc.data().situation?.status || 0,
-        title: doc.data().title || "Sem título",
-        district: doc.data().address?.district || "Não informado",
-        city: doc.data().address?.city || "Não informado",
-        created_at: doc.data().created_at,
-        image_url: doc.data().image_url,
-      }))
+      .map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          latitude: data.address?.latitude,
+          longitude: data.address?.longitude,
+          status: data.situation?.status || 0,
+          title:
+            data.description?.substring(0, 50) +
+              (data.description?.length > 50 ? "..." : "") || "Sem descrição",
+          description: data.description || "Sem descrição",
+          district: data.address?.district || "Não informado",
+          city: data.address?.city || "Não informado",
+          state: data.address?.state || "Não informado",
+          postalCode: data.address?.postalCode || "",
+          fallbackName: data.address?.fallbackName || "",
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+          imageUrl: data.imageUrl,
+          thumbnailUrl: data.thumbnailUrl,
+          userId: data.userId,
+          userName: data.userName || "Usuário não identificado",
+          similarCount: data.similarCount || 0,
+        };
+      })
       .filter((complaint) => complaint.latitude && complaint.longitude);
 
     // Filtrar por status se especificado
@@ -118,6 +130,9 @@ RouterComplaints.get("/heatmap", async (req, res) => {
     });
   }
 });
+
+// Incluir outras rotas de complaints DEPOIS do heatmap (para evitar conflito com /:id)
+RouterComplaints.use("/", searchComplaints);
 
 // Funções auxiliares para o heatmap
 function generateClusters(complaints: any[], zoom: number): any[] {

@@ -37,14 +37,24 @@ router.get("/", authenticateFirebaseToken, async (req, res) => {
       });
     }
 
-    // Mapear e aplicar filtros
-    let allUsers: any[] = usersSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      created_at: doc.data().created_at || new Date(), // garantir campo de data
-    }));
+    // Mapear usando a estrutura REAL do banco
+    let allUsers: any[] = usersSnapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        documentNumber: data.documentNumber, // Campo real: CPF
+        email: data.email,
+        fullName: data.fullName, // Campo real: nome completo
+        phoneNumber: data.phoneNumber, // Campo real: telefone
+        // Campos opcionais
+        photoURL: data.photoURL,
+        verified: data.verified || false,
+        created_at: data.created_at || new Date(),
+        updated_at: data.updated_at,
+      };
+    });
 
-    // Filtro de busca por nome, email ou CPF
+    // Filtro de busca por nome, email ou CPF (usando campos reais)
     if (search) {
       const searchLower = (search as string).toLowerCase();
       allUsers = allUsers.filter(
@@ -52,7 +62,7 @@ router.get("/", authenticateFirebaseToken, async (req, res) => {
           (user.fullName &&
             user.fullName.toLowerCase().includes(searchLower)) ||
           (user.email && user.email.toLowerCase().includes(searchLower)) ||
-          (user.cpf && user.cpf.includes(searchLower))
+          (user.documentNumber && user.documentNumber.includes(searchLower))
       );
     }
 
