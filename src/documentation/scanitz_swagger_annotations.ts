@@ -651,6 +651,124 @@
 
 /**
  * @swagger
+ * complaints/recent:
+ *   get:
+ *     summary: Listar denúncias mais recentes
+ *     description: Retorna as denúncias mais recentes, com filtros simples (limit, status, city). Útil para feed ou widget de "recentes".
+ *     tags: [Complaints]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           maximum: 100
+ *         description: Número máximo de denúncias a retornar
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: integer
+ *           enum: [0,1,2,3]
+ *         description: Filtrar por status da denúncia (0=pending,1=progress,2=resolved,3=closed)
+ *       - in: query
+ *         name: city
+ *         schema:
+ *           type: string
+ *         description: Filtrar por cidade
+ *     responses:
+ *       200:
+ *         description: Denúncias recentes retornadas com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 statuscode:
+ *                   type: integer
+ *                   example: 200
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Complaint'
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     requestedLimit:
+ *                       type: integer
+ */
+
+/**
+ * @swagger
+ * complaints/relevant:
+ *   get:
+ *     summary: Listar denúncias relevantes
+ *     description: Retorna denúncias ranqueadas por relevância usando similarCount, prioridade e recência. Útil para módulos de triagem e destaque.
+ *     tags: [Complaints]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           maximum: 100
+ *         description: Número máximo de denúncias a retornar
+ *       - in: query
+ *         name: minSimilar
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Mínimo de denúncias similares para considerar (filtra itens com similarCount < minSimilar)
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: integer
+ *           enum: [0,1,2,3]
+ *         description: Filtrar por status da denúncia
+ *       - in: query
+ *         name: city
+ *         schema:
+ *           type: string
+ *         description: Filtrar por cidade
+ *     responses:
+ *       200:
+ *         description: Denúncias relevantes retornadas com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 statuscode:
+ *                   type: integer
+ *                   example: 200
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     allOf:
+ *                       - $ref: '#/components/schemas/Complaint'
+ *                       - type: object
+ *                         properties:
+ *                           relevanceScore:
+ *                             type: integer
+ *                             description: Score normalizado (0-100) indicando relevância
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     requestedLimit:
+ *                       type: integer
+ */
+
+/**
+ * @swagger
  * complaints/analytics:
  *   get:
  *     summary: Analytics avançados de denúncias

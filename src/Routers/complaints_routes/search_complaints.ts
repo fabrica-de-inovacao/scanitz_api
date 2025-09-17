@@ -285,6 +285,224 @@ router.get("/positions", async (req, res) => {
   }
 });
 
+// listar denúncias relevantes (público) -> novo endpoint /relevant
+router.get("/relevant", async (req, res) => {
+  try {
+    const { limit = "10", minSimilar = "0", status, city } = req.query;
+    const limitNum = Math.max(
+      1,
+      Math.min(100, parseInt((limit as string) || "10"))
+    );
+    const minSimilarNum = Math.max(0, parseInt((minSimilar as string) || "0"));
+
+    const complaintsSnapshot = await firestore.getDocs(
+      firestore.collection(db, "complaints")
+    );
+
+    if (complaintsSnapshot.empty) {
+      return res
+        .status(200)
+        .json({ success: true, statuscode: 200, data: [], meta: { total: 0 } });
+    }
+
+    // transformar documentos
+    let complaints = complaintsSnapshot.docs.map((doc) => {
+      const d = doc.data();
+      const createdAt = d.createdAt || d.created_at;
+      return {
+        id: doc.id,
+        description: d.description,
+        address: d.address,
+        situation: d.situation,
+        imageUrl: d.imageUrl,
+        thumbnailUrl: d.thumbnailUrl,
+        similarCount: d.similarCount || 0,
+        createdAt: createdAt,
+        updatedAt: d.updatedAt || d.updated_at,
+        userId: d.userId,
+        userName: d.userName,
+        _raw: d,
+      } as any;
+    });
+
+    // filtros básicos
+    if (status !== undefined) {
+      const s = parseInt(status as string);
+      if (!isNaN(s))
+        complaints = complaints.filter(
+          (c: any) => (c.situation?.status || 0) === s
+        );
+    }
+
+    if (city) {
+      const cityLower = (city as string).toLowerCase();
+      complaints = complaints.filter((c: any) =>
+        (c.address?.city || "").toLowerCase().includes(cityLower)
+      );
+    }
+
+    // filtrar por similarCount mínimo
+    complaints = complaints.filter(
+      (c: any) => (c.similarCount || 0) >= minSimilarNum
+    );
+
+    // calcular score de relevância
+    // fatores: similarCount (peso 0.5), prioridade calculada (peso 0.3), recência (peso 0.2)
+    const now = new Date().getTime();
+    const scored = complaints.map((c: any) => {
+      const similar = Math.log2((c.similarCount || 0) + 1); // suaviza grandes valores
+
+      // calcular prioridade usando função existente calculatePriority baseada em _raw
+      const priority = calculatePriority(c._raw || {}); // 'low'|'medium'|'high'|'urgent'
+      const priorityScore =
+        priority === "urgent"
+          ? 3
+          : priority === "high"
+          ? 2
+          : priority === "medium"
+          ? 1
+          : 0;
+
+      // recência em dias (menos dias => maior score)
+      const createdAtTime = c.createdAt ? new Date(c.createdAt).getTime() : 0;
+      const daysAgo = createdAtTime
+        ? Math.max(0, Math.floor((now - createdAtTime) / (1000 * 60 * 60 * 24)))
+        : 3650;
+      const recencyScore = 1 / (1 + daysAgo); // intervalo (0,1]
+
+      // combinar pesos
+      const rawScore = similar * 0.5 + priorityScore * 0.3 + recencyScore * 0.2;
+
+      return { ...c, relevanceRaw: rawScore };
+    });
+
+    // normalizar score para 0..100
+    const maxRaw = Math.max(...scored.map((s: any) => s.relevanceRaw), 0.00001);
+    const normalized = scored
+      .map((s: any) => ({
+        ...s,
+        relevanceScore: Math.round((s.relevanceRaw / maxRaw) * 100),
+      }))
+      .sort((a: any, b: any) => b.relevanceScore - a.relevanceScore)
+      .slice(0, limitNum)
+      .map((s: any) => {
+        // retornar shape enxuto ao cliente
+        return {
+          id: s.id,
+          description: s.description,
+          address: s.address,
+          situation: s.situation,
+          imageUrl: s.imageUrl,
+          thumbnailUrl: s.thumbnailUrl,
+          similarCount: s.similarCount,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+          userId: s.userId,
+          userName: s.userName,
+          relevanceScore: s.relevanceScore,
+        };
+      });
+
+    res
+      .status(200)
+      .json({
+        success: true,
+        statuscode: 200,
+        data: normalized,
+        meta: { total: normalized.length, requestedLimit: limitNum },
+      });
+  } catch (error) {
+    console.error("Erro no endpoint /relevant:", error);
+    res
+      .status(500)
+      .json({
+        success: false,
+        statuscode: 500,
+        message: "Erro interno no servidor",
+      });
+  }
+});
+
+// listar denúncias recentes (público) -> novo endpoint /recent
+router.get("/recent", async (req, res) => {
+  try {
+    const { limit = "10", status, city } = req.query;
+    const limitNum = Math.max(
+      1,
+      Math.min(100, parseInt((limit as string) || "10"))
+    );
+
+    const complaintsSnapshot = await firestore.getDocs(
+      firestore.collection(db, "complaints")
+    );
+
+    if (complaintsSnapshot.empty) {
+      return res.status(200).json({
+        success: true,
+        statuscode: 200,
+        data: [],
+        meta: { total: 0 },
+      });
+    }
+
+    let complaints = complaintsSnapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      // mapear campos para shape consistente usado pelo frontend
+      .map((c: any) => ({
+        id: c.id,
+        description: c.description,
+        address: c.address,
+        situation: c.situation,
+        imageUrl: c.imageUrl,
+        thumbnailUrl: c.thumbnailUrl,
+        similarCount: c.similarCount || 0,
+        createdAt: c.createdAt || c.created_at,
+        updatedAt: c.updatedAt || c.updated_at,
+        userId: c.userId,
+        userName: c.userName,
+      }));
+
+    // aplicar filtros simples
+    if (status !== undefined) {
+      const s = parseInt(status as string);
+      if (!isNaN(s))
+        complaints = complaints.filter(
+          (x: any) => (x.situation?.status || 0) === s
+        );
+    }
+
+    if (city) {
+      const cityLower = (city as string).toLowerCase();
+      complaints = complaints.filter((x: any) =>
+        (x.address?.city || "").toLowerCase().includes(cityLower)
+      );
+    }
+
+    // ordenar por createdAt desc
+    complaints.sort((a: any, b: any) => {
+      const aTime = new Date(a.createdAt || 0).getTime();
+      const bTime = new Date(b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+
+    const sliced = complaints.slice(0, limitNum);
+
+    res.status(200).json({
+      success: true,
+      statuscode: 200,
+      data: sliced,
+      meta: { total: sliced.length, requestedLimit: limitNum },
+    });
+  } catch (error) {
+    console.error("Erro no endpoint /recent:", error);
+    res.status(500).json({
+      success: false,
+      statuscode: 500,
+      message: "Erro interno no servidor",
+    });
+  }
+});
+
 //buscar denúncia pelo id com detalhes completos (autenticação opcional - dados extras se for dono)
 router.get("/:id", optionalAuthentication, async (req, res) => {
   const { id } = req.params;
