@@ -918,6 +918,56 @@
  * @swagger
  * search/autocomplete:
  *   get:
+ *     summary: Autocomplete para buscas (locais e termos)
+ *     description: Retorna itens simples para alimentar componentes de autocomplete (cidades, bairros e termos comuns)
+ *     tags: [Search]
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Termo parcial para autocompletar
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [all, users, complaints]
+ *           default: all
+ *         description: Tipo de conteúdo a priorizar
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 8
+ *         description: Número máximo de itens retornados
+ *     responses:
+ *       200:
+ *         description: Sugestões de autocomplete retornadas com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 statuscode:
+ *                   type: integer
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     items:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           type:
+ *                             type: string
+ *                             description: Tipo do item (city,district,term)
+ *                           text:
+ *                             type: string
+ *                           value:
+ *                             type: string
  *     summary: Sugestões de autocompletar
  *     description: Retorna sugestões em tempo real para autocompletar a busca
  *     tags: [Search]

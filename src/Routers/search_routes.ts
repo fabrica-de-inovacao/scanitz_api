@@ -341,6 +341,103 @@ router.get("/suggestions", async (req, res) => {
   }
 });
 
+// Endpoint para autocomplete (mais orientado a UI de autocomplete)
+router.get("/autocomplete", async (req, res) => {
+  const { q, type = "all", limit = 8 } = req.query;
+
+  if (!q || (q as string).trim().length < 1) {
+    return res
+      .status(200)
+      .json({ success: true, statuscode: 200, data: { items: [] } });
+  }
+
+  try {
+    const searchQuery = (q as string).toLowerCase().trim();
+    const limitNum = Math.min(
+      Math.max(parseInt((limit as string) || "8"), 1),
+      100
+    );
+
+    const items: any[] = [];
+
+    // Priorizar localidades (cidade, bairro)
+    if (type === "all" || type === "complaints") {
+      const complaintsSnapshot = await firestore.getDocs(
+        firestore.collection(db, "complaints")
+      );
+
+      const seen = new Set<string>();
+
+      for (const doc of complaintsSnapshot.docs) {
+        const data = doc.data();
+        const city = data.address?.city;
+        const district = data.address?.district;
+
+        if (city && city.toLowerCase().includes(searchQuery)) {
+          const key = `city::${city}`;
+          if (!seen.has(key)) {
+            items.push({ type: "city", text: city, value: city });
+            seen.add(key);
+            if (items.length >= limitNum) break;
+          }
+        }
+
+        if (district && district.toLowerCase().includes(searchQuery)) {
+          const combined = `${district}, ${city || ""}`.trim();
+          const key = `district::${combined}`;
+          if (!seen.has(key)) {
+            items.push({ type: "district", text: combined, value: combined });
+            seen.add(key);
+            if (items.length >= limitNum) break;
+          }
+        }
+      }
+    }
+
+    // Se ainda não atingiu o limite, adicionar termos comuns que combinam
+    if (items.length < limitNum) {
+      const commonTerms = [
+        "buraco",
+        "asfalto",
+        "iluminação",
+        "lâmpada",
+        "lixo",
+        "entulho",
+        "esgoto",
+        "água",
+        "calçada",
+        "árvore",
+        "semáforo",
+        "placas",
+      ];
+
+      commonTerms.forEach((term) => {
+        if (items.length >= limitNum) return;
+        if (term.includes(searchQuery)) {
+          items.push({ type: "term", text: term, value: term });
+        }
+      });
+    }
+
+    res
+      .status(200)
+      .json({
+        success: true,
+        statuscode: 200,
+        data: { items: items.slice(0, limitNum) },
+      });
+  } catch (error) {
+    console.error("Erro no autocomplete:", error);
+    res
+      .status(500)
+      .json({
+        success: false,
+        statuscode: 500,
+        message: "Erro no autocomplete",
+      });
+  }
+});
+
 // Endpoint para busca avançada com múltiplos filtros
 router.post("/advanced", optionalAuthentication, async (req, res) => {
   const {

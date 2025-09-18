@@ -403,23 +403,19 @@ router.get("/relevant", async (req, res) => {
         };
       });
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        statuscode: 200,
-        data: normalized,
-        meta: { total: normalized.length, requestedLimit: limitNum },
-      });
+    res.status(200).json({
+      success: true,
+      statuscode: 200,
+      data: normalized,
+      meta: { total: normalized.length, requestedLimit: limitNum },
+    });
   } catch (error) {
     console.error("Erro no endpoint /relevant:", error);
-    res
-      .status(500)
-      .json({
-        success: false,
-        statuscode: 500,
-        message: "Erro interno no servidor",
-      });
+    res.status(500).json({
+      success: false,
+      statuscode: 500,
+      message: "Erro interno no servidor",
+    });
   }
 });
 
@@ -503,7 +499,204 @@ router.get("/recent", async (req, res) => {
   }
 });
 
-//buscar denúncia pelo id com detalhes completos (autenticação opcional - dados extras se for dono)
+// Endpoint de análise avançada para dashboard
+router.get("/analytics", async (req, res) => {
+  // Aceita tanto 'timeframe' quanto 'period' como query param
+  const timeframeRaw =
+    (req.query.timeframe as string) || (req.query.period as string) || "30d";
+  const groupBy =
+    (req.query.groupBy as string) || (req.query.groupby as string) || "day";
+  const district = req.query.district as string | undefined;
+  const city = req.query.city as string | undefined;
+  const status = req.query.status as string | undefined;
+  const q = (req.query.q as string) || "";
+
+  try {
+    const complaintsSnapshot = await firestore.getDocs(
+      firestore.collection(db, "complaints")
+    );
+
+    let complaints = complaintsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as any[];
+
+    // Filtros por district/city/status
+    if (district && district !== "all") {
+      complaints = complaints.filter((c) => c.address?.district === district);
+    }
+    if (city && city !== "all") {
+      complaints = complaints.filter((c) => c.address?.city === city);
+    }
+    if (status && status !== "all") {
+      complaints = complaints.filter(
+        (c) => (c.situation?.status || 0) === parseInt(status as string)
+      );
+    }
+
+    // Filtro por q (string livre) — busca em descrição, rua, distrito, cidade
+    if (q && q.trim().length > 0) {
+      const qLower = q.toLowerCase().trim();
+      complaints = complaints.filter((c) => {
+        const text = [
+          c.description || "",
+          c.address?.street || "",
+          c.address?.district || "",
+          c.address?.city || "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        return text.includes(qLower);
+      });
+    }
+
+    // Análise temporal
+    // Se o cliente pedir 'all', '0' ou 'unlimited' queremos NÃO aplicar corte temporal
+    const timeframeLower = (timeframeRaw || "").toString().toLowerCase();
+    let filteredComplaints: any[];
+    if (
+      timeframeLower === "all" ||
+      timeframeLower === "0" ||
+      timeframeLower === "unlimited" ||
+      timeframeLower === "alltime"
+    ) {
+      // manter todo o período
+      filteredComplaints = complaints;
+    } else {
+      const timeframeDays = getTimeframeDays(timeframeRaw as string);
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - timeframeDays);
+
+      filteredComplaints = complaints.filter((c) => {
+        const date = new Date(c.createdAt || c.created_at);
+        return date >= cutoffDate;
+      });
+    }
+
+    // Summary / KPIs
+    const total = filteredComplaints.length;
+    const resolved = filteredComplaints.filter(
+      (c) => (c.situation?.status || 0) >= 2
+    ).length;
+    const pending = filteredComplaints.filter(
+      (c) => (c.situation?.status || 0) === 0
+    ).length;
+
+    // average resolution time (dias) — cálculo com precisão decimal
+    const resolvedItems = filteredComplaints.filter(
+      (c) => (c.situation?.status || 0) >= 2 && c.updatedAt && c.createdAt
+    );
+    let averageResolutionTime = 0;
+    if (resolvedItems.length > 0) {
+      const totalMs = resolvedItems.reduce((sum: number, it: any) => {
+        const created = new Date(it.createdAt || it.created_at).getTime();
+        const resolvedAt = new Date(it.updatedAt || it.updated_at).getTime();
+        return sum + Math.max(0, resolvedAt - created);
+      }, 0);
+      averageResolutionTime =
+        Math.round(
+          (totalMs / resolvedItems.length / (1000 * 60 * 60 * 24)) * 10
+        ) / 10; // dias com 1 decimal
+    }
+
+    const resolutionRate =
+      total > 0 ? Math.round((resolved / total) * 1000) / 10 : 0; // uma casa decimal
+
+    // Trends
+    let trendsItems: any[] = [];
+    if (["day", "hour", "week", "month"].includes(groupBy)) {
+      const timeline = groupComplaintsByTime(filteredComplaints, groupBy);
+      trendsItems = timeline.map((t: any) => ({
+        date: t.period,
+        count: t.count,
+      }));
+    } else if (groupBy === "district") {
+      // agregação por distrito
+      const counts: any = {};
+      filteredComplaints.forEach((c) => {
+        const d = c.address?.district || "Não informado";
+        counts[d] = (counts[d] || 0) + 1;
+      });
+      trendsItems = Object.entries(counts).map(([name, count]) => ({
+        name,
+        count,
+      }));
+    } else if (groupBy === "city") {
+      const counts: any = {};
+      filteredComplaints.forEach((c) => {
+        const ci = c.address?.city || "Não informado";
+        counts[ci] = (counts[ci] || 0) + 1;
+      });
+      trendsItems = Object.entries(counts).map(([name, count]) => ({
+        name,
+        count,
+      }));
+    } else {
+      // default temporal
+      const timeline = groupComplaintsByTime(filteredComplaints, "day");
+      trendsItems = timeline.map((t: any) => ({
+        date: t.period,
+        count: t.count,
+      }));
+    }
+
+    // Top categories
+    const topCategoriesRaw = getMostCommonCategories(filteredComplaints);
+    const topCategories = topCategoriesRaw.map((c: any) => ({
+      name: c.category || c.name || c,
+      count: c.count,
+    }));
+
+    // Points (opcional)
+    const points = filteredComplaints
+      .map((c) => ({
+        lat: c.address?.latitude,
+        lng: c.address?.longitude,
+        weight: 1,
+        status:
+          (c.situation?.status || 0) === 0
+            ? "pending"
+            : (c.situation?.status || 0) === 1
+            ? "in_progress"
+            : (c.situation?.status || 0) === 2
+            ? "resolved"
+            : "closed",
+      }))
+      .filter((p) => p.lat && p.lng);
+
+    const response = {
+      meta: {
+        q: q || null,
+        period: timeframeRaw,
+        groupBy,
+        generatedAt: new Date().toISOString(),
+      },
+      summary: {
+        total,
+        resolved,
+        pending,
+        resolutionRate,
+        averageResolutionTime,
+      },
+      trends: {
+        items: trendsItems,
+      },
+      topCategories,
+      points,
+    };
+
+    res.status(200).json({ success: true, statuscode: 200, data: response });
+  } catch (error) {
+    console.error("Erro ao gerar analytics:", error);
+    res.status(500).json({
+      success: false,
+      statuscode: 500,
+      message: "Erro ao gerar análise avançada 😿",
+    });
+  }
+});
+
+// buscar denúncia pelo id com detalhes completos (autenticação opcional - dados extras se for dono)
 router.get("/:id", optionalAuthentication, async (req, res) => {
   const { id } = req.params;
 
@@ -971,13 +1164,15 @@ router.get("/stats", async (req, res) => {
 
 // Endpoint de análise avançada para dashboard
 router.get("/analytics", async (req, res) => {
-  const {
-    timeframe = "30d",
-    groupBy = "day",
-    district,
-    city,
-    status,
-  } = req.query;
+  // Aceita tanto 'timeframe' quanto 'period' como query param
+  const timeframeRaw =
+    (req.query.timeframe as string) || (req.query.period as string) || "30d";
+  const groupBy =
+    (req.query.groupBy as string) || (req.query.groupby as string) || "day";
+  const district = req.query.district as string | undefined;
+  const city = req.query.city as string | undefined;
+  const status = req.query.status as string | undefined;
+  const q = (req.query.q as string) || "";
 
   try {
     const complaintsSnapshot = await firestore.getDocs(
@@ -989,7 +1184,7 @@ router.get("/analytics", async (req, res) => {
       ...doc.data(),
     })) as any[];
 
-    // Filtros
+    // Filtros por district/city/status
     if (district && district !== "all") {
       complaints = complaints.filter((c) => c.address?.district === district);
     }
@@ -1002,8 +1197,24 @@ router.get("/analytics", async (req, res) => {
       );
     }
 
+    // Filtro por q (string livre) — busca em descrição, rua, distrito, cidade
+    if (q && q.trim().length > 0) {
+      const qLower = q.toLowerCase().trim();
+      complaints = complaints.filter((c) => {
+        const text = [
+          c.description || "",
+          c.address?.street || "",
+          c.address?.district || "",
+          c.address?.city || "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        return text.includes(qLower);
+      });
+    }
+
     // Análise temporal
-    const timeframeDays = getTimeframeDays(timeframe as string);
+    const timeframeDays = getTimeframeDays(timeframeRaw as string);
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - timeframeDays);
 
@@ -1012,52 +1223,119 @@ router.get("/analytics", async (req, res) => {
       return date >= cutoffDate;
     });
 
-    const analytics = {
+    // Summary / KPIs
+    const total = filteredComplaints.length;
+    const resolved = filteredComplaints.filter(
+      (c) => (c.situation?.status || 0) >= 2
+    ).length;
+    const pending = filteredComplaints.filter(
+      (c) => (c.situation?.status || 0) === 0
+    ).length;
+
+    // average resolution time (dias) — cálculo com precisão decimal
+    const resolvedItems = filteredComplaints.filter(
+      (c) => (c.situation?.status || 0) >= 2 && c.updatedAt && c.createdAt
+    );
+    let averageResolutionTime = 0;
+    if (resolvedItems.length > 0) {
+      const totalMs = resolvedItems.reduce((sum: number, it: any) => {
+        const created = new Date(it.createdAt || it.created_at).getTime();
+        const resolvedAt = new Date(it.updatedAt || it.updated_at).getTime();
+        return sum + Math.max(0, resolvedAt - created);
+      }, 0);
+      averageResolutionTime =
+        Math.round(
+          (totalMs / resolvedItems.length / (1000 * 60 * 60 * 24)) * 10
+        ) / 10; // dias com 1 decimal
+    }
+
+    const resolutionRate =
+      total > 0 ? Math.round((resolved / total) * 1000) / 10 : 0; // uma casa decimal
+
+    // Trends
+    let trendsItems: any[] = [];
+    if (["day", "hour", "week", "month"].includes(groupBy)) {
+      const timeline = groupComplaintsByTime(filteredComplaints, groupBy);
+      trendsItems = timeline.map((t: any) => ({
+        date: t.period,
+        count: t.count,
+      }));
+    } else if (groupBy === "district") {
+      // agregação por distrito
+      const counts: any = {};
+      filteredComplaints.forEach((c) => {
+        const d = c.address?.district || "Não informado";
+        counts[d] = (counts[d] || 0) + 1;
+      });
+      trendsItems = Object.entries(counts).map(([name, count]) => ({
+        name,
+        count,
+      }));
+    } else if (groupBy === "city") {
+      const counts: any = {};
+      filteredComplaints.forEach((c) => {
+        const ci = c.address?.city || "Não informado";
+        counts[ci] = (counts[ci] || 0) + 1;
+      });
+      trendsItems = Object.entries(counts).map(([name, count]) => ({
+        name,
+        count,
+      }));
+    } else {
+      // default temporal
+      const timeline = groupComplaintsByTime(filteredComplaints, "day");
+      trendsItems = timeline.map((t: any) => ({
+        date: t.period,
+        count: t.count,
+      }));
+    }
+
+    // Top categories
+    const topCategoriesRaw = getMostCommonCategories(filteredComplaints);
+    const topCategories = topCategoriesRaw.map((c: any) => ({
+      name: c.category || c.name || c,
+      count: c.count,
+    }));
+
+    // Points (opcional)
+    const points = filteredComplaints
+      .map((c) => ({
+        lat: c.address?.latitude,
+        lng: c.address?.longitude,
+        weight: 1,
+        status:
+          (c.situation?.status || 0) === 0
+            ? "pending"
+            : (c.situation?.status || 0) === 1
+            ? "in_progress"
+            : (c.situation?.status || 0) === 2
+            ? "resolved"
+            : "closed",
+      }))
+      .filter((p) => p.lat && p.lng);
+
+    const response = {
+      meta: {
+        q: q || null,
+        period: timeframeRaw,
+        groupBy,
+        generatedAt: new Date().toISOString(),
+      },
       summary: {
-        total: filteredComplaints.length,
-        resolved: filteredComplaints.filter(
-          (c) => (c.situation?.status || 0) >= 2
-        ).length,
-        averageResolutionTime:
-          calculateAverageResolutionTime(filteredComplaints),
-        responseRate:
-          filteredComplaints.length > 0
-            ? (
-                (filteredComplaints.filter(
-                  (c) => (c.situation?.status || 0) > 0
-                ).length /
-                  filteredComplaints.length) *
-                100
-              ).toFixed(2)
-            : 0,
+        total,
+        resolved,
+        pending,
+        resolutionRate,
+        averageResolutionTime,
       },
-
-      timeline: groupComplaintsByTime(filteredComplaints, groupBy as string),
-
-      heatmap: generateHeatmapData(filteredComplaints),
-
-      patterns: {
-        mostCommonCategories: getMostCommonCategories(filteredComplaints),
-        peakHours: getPeakHours(filteredComplaints),
-        seasonality: getSeasonalityData(filteredComplaints),
+      trends: {
+        items: trendsItems,
       },
-
-      comparison: {
-        previousPeriod: await getComparisonData(complaints, timeframeDays),
-        growth: calculateGrowthRate(filteredComplaints, timeframeDays),
-      },
+      topCategories,
+      points,
     };
 
-    res.status(200).json({
-      success: true,
-      statuscode: 200,
-      data: analytics,
-      meta: {
-        filters: { timeframe, groupBy, district, city, status },
-        generatedAt: new Date().toISOString(),
-        recordsAnalyzed: filteredComplaints.length,
-      },
-    });
+    res.status(200).json({ success: true, statuscode: 200, data: response });
   } catch (error) {
     console.error("Erro ao gerar analytics:", error);
     res.status(500).json({
